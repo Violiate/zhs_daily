@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# 打包产物
+dist/
+build/
+*.spec.bak
+
+# 本地运行产物（含账号配置、登录态、真实姓名/UUID、浏览器指纹、课程列表与日志，绝对不要提交）
+config.yaml
+courses.json
+state/*
+!state/.gitkeep
+logs/*
+!logs/.gitkeep
+*.log
+*.jsonl
+*.png
+NEED_LOGIN
+ALL_DONE
+daily.lock
+tests/_tmp_state.json
+教-*
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
