@@ -214,8 +214,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("-p", "--password", help="密码（会留在命令历史里，慎用）")
     p.add_argument("-q", "--qrlogin", action="store_true", help="强制使用二维码登录")
     p.add_argument("-s", "--speed", type=float, help="播放速度（会被夹到前端上限）")
-    p.add_argument("-t", "--threshold", type=float, help="完成判定阈值，默认 0.91")
+    p.add_argument("-t", "--threshold", type=float, help="完成判定阈值，默认 0.99")
     p.add_argument("-l", "--limit", type=float, help="单门课时限（分钟）")
+    p.add_argument("-a", "--all", action="store_true",
+                   help="一口气刷完模式：解除单日时长与会话次数限制")
+    p.add_argument("--no-rest", action="store_true",
+                   help="关闭跨会话强制休息（配合 --all 全程连续刷课）")
     p.add_argument("-f", "--fetch", action="store_true", help="拉取课程清单")
     p.add_argument("-ai", "--aicourse", nargs=2, metavar=("COURSE_ID", "CLASS_ID"),
                    help="刷 AI 课程")
@@ -246,6 +250,13 @@ def apply_cli_overrides(cfg: Config, args: argparse.Namespace) -> None:
         cfg.study.end_threshold = args.threshold
     if args.limit is not None:
         cfg.budget.per_course_minutes = args.limit
+    if getattr(args, "all", False):
+        cfg.budget.daily_minutes = 0.0
+        cfg.budget.daily_sessions = 0
+        cfg.budget.session_minutes = (95.0, 150.0)
+        cfg.budget.rest_minutes = (0.0, 0.0) if getattr(args, "no_rest", False) else (10.0, 25.0)
+    elif getattr(args, "no_rest", False):
+        cfg.budget.rest_minutes = (0.0, 0.0)
     if args.no_relay:
         cfg.relay.enabled = False
     if args.no_exam:
@@ -284,7 +295,9 @@ def print_config(cfg: Config, problems: List[str], mode: str = "") -> None:
         f"  时间戳        {'真实毫秒+抖动' if cfg.pacer.real_millisecond_ts else '秒级（*000，风险高）'}",
         f"  会话纪律      单次 {cfg.budget.session_minutes[0]:.0f}~{cfg.budget.session_minutes[1]:.0f} 分钟，"
         f"休息 {cfg.budget.rest_minutes[0]:.0f}~{cfg.budget.rest_minutes[1]:.0f} 分钟",
-        f"  单日上限      {cfg.budget.daily_minutes:.0f} 分钟 / {cfg.budget.daily_sessions} 次会话",
+        f"  单日上限      "
+        + (f"{cfg.budget.daily_minutes:.0f} 分钟 / {cfg.budget.daily_sessions or '∞'} 次会话"
+           if cfg.budget.daily_minutes > 0 else "不限时（一口气刷完模式）"),
         f"  验证码中继    {relay_line}",
         f"  AI 作答       {'开启，后端=' + cfg.ai.backend if cfg.ai.enabled else '关闭'}",
         "=" * 72,

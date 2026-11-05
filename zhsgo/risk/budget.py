@@ -29,7 +29,9 @@ class BudgetConfig:
     state_file: str = "./state/budget.json"
     session_minutes: Tuple[float, float] = (45.0, 65.0)
     rest_minutes: Tuple[float, float] = (20.0, 55.0)
+    # 单日总时长上限（分钟），<=0 表示不限（一口气刷完模式）
     daily_minutes: float = 26.0
+    # 单日允许启动的会话次数上限，<=0 表示不限
     daily_sessions: int = 2
     # 单门课程的时限（分钟），0 表示不限。对应原项目 -l
     per_course_minutes: float = 0.0
@@ -100,7 +102,7 @@ class Budget:
             return 0.0
 
         total = float(self.q.get("seconds", 0.0))
-        if total >= self.cfg.daily_minutes * 60.0:
+        if self.cfg.daily_minutes > 0 and total >= self.cfg.daily_minutes * 60.0:
             raise BudgetExhausted(
                 f"今日已学习 {total / 60:.1f} 分钟，达到上限 "
                 f"{self.cfg.daily_minutes:.0f} 分钟，收工"
@@ -116,7 +118,7 @@ class Budget:
         now = self.clock.now()
         if self._session_started is None:
             sessions = int(self.q.get("sessions", 0))
-            if sessions >= self.cfg.daily_sessions:
+            if self.cfg.daily_sessions > 0 and sessions >= self.cfg.daily_sessions:
                 raise BudgetExhausted(
                     f"今日已完成 {sessions} 次会话，达到上限 {self.cfg.daily_sessions} 次"
                 )
@@ -124,17 +126,23 @@ class Budget:
             self.q["session_started"] = now
             self.q["sessions"] = sessions + 1
             self.q["target_seconds"] = self._roll_session_target()
-            risk_log(f"开始第 {self.q['sessions']}/{self.cfg.daily_sessions} 次会话，"
+            sess_cap = str(self.cfg.daily_sessions) if self.cfg.daily_sessions > 0 else "∞"
+            risk_log(f"开始第 {self.q['sessions']}/{sess_cap} 次会话，"
                      f"本次目标 {self.q['target_seconds'] / 60:.0f} 分钟")
             self.save()
             return 0.0
 
         elapsed = now - self._session_started
         target = float(self.q.get("target_seconds") or self._roll_session_target())
-        remaining_daily = self.cfg.daily_minutes * 60.0 - total
-        # 今日剩余额度不足 15 分钟时即将收工，不再触发几十分钟的跨会话强制休息
-        if elapsed >= target and remaining_daily > 15.0 * 60.0:
-            lo, hi = self.cfg.rest_minutes
+        remaining_daily = (
+            self.cfg.daily_minutes * 60.0 - total
+            if self.cfg.daily_minutes > 0
+            else float("inf")
+        )
+        lo, hi = self.cfg.rest_minutes
+        # 今日剩余额度不足 15 分钟时即将收工，不再触发几十分钟的跨会话强制休息；
+        # 若 rest_minutes 设为 [0, 0]（如 --no-rest），也不触发跨会话休息。
+        if hi > 0 and elapsed >= target and remaining_daily > 15.0 * 60.0:
             rest = random.uniform(lo, hi) * 60.0
             risk_log(f"本次会话已连续 {elapsed / 60:.0f} 分钟，强制休息 {rest / 60:.0f} 分钟")
             self._session_started = None
@@ -157,7 +165,7 @@ class Budget:
             key = str(course_id)
             self._course_time[key] = float(self._course_time.get(key, 0.0)) + seconds
 
-        if self.daily_seconds() >= self.cfg.daily_minutes * 60.0:
+        if self.cfg.daily_minutes > 0 and self.daily_seconds() >= self.cfg.daily_minutes * 60.0:
             raise BudgetExhausted(
                 f"今日已学习 {self.daily_seconds() / 60:.1f} 分钟，"
                 f"达到上限 {self.cfg.daily_minutes:.0f} 分钟，收工"
@@ -172,8 +180,10 @@ class Budget:
         return float(self.q.get("seconds", 0.0))
 
     def report(self) -> str:
-        return (f"今日 {self.daily_seconds() / 60:.1f}/{self.cfg.daily_minutes:.0f} 分钟 | "
-                f"会话 {self.q.get('sessions', 0)}/{self.cfg.daily_sessions} | "
+        daily_cap = f"{self.cfg.daily_minutes:.0f}" if self.cfg.daily_minutes > 0 else "∞"
+        sess_cap = f"{self.cfg.daily_sessions}" if self.cfg.daily_sessions > 0 else "∞"
+        return (f"今日 {self.daily_seconds() / 60:.1f}/{daily_cap} 分钟 | "
+                f"会话 {self.q.get('sessions', 0)}/{sess_cap} | "
                 f"本次会话已 {self.session_elapsed() / 60:.0f} 分钟")
 
     def close_session(self) -> None:
@@ -193,6 +203,10 @@ class Budget:
         self.q.pop("session_started", None)
         self.q.pop("target_seconds", None)
         sessions = int(self.q.get("sessions", 0) or 0)
-        if sessions > 0 and self.daily_seconds() < self.cfg.daily_minutes * 60.0:
+        under_limit = (
+            self.cfg.daily_minutes <= 0
+            or self.daily_seconds() < self.cfg.daily_minutes * 60.0
+        )
+        if sessions > 0 and under_limit:
             self.q["sessions"] = sessions - 1
         self.save()

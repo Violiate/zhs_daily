@@ -177,9 +177,10 @@ def print_status(cfg: Config) -> int:
     q = (budget.get("budget") or {}) if isinstance(budget, dict) else {}
     minutes = float(q.get("seconds", 0.0)) / 60.0 if q.get("date") == today else 0.0
     target = float(cfg.budget.daily_minutes)
+    target_str = f"{target:.0f} 分钟" if target > 0 else "不限时（一口气刷完）"
     print("=" * 64)
     print(f"日期        {today}")
-    print(f"今日已学    {minutes:.1f} / {target:.0f} 分钟")
+    print(f"今日已学    {minutes:.1f} / {target_str}")
     print(f"状态文件    {STATUS_FILE}")
     if status:
         print(f"最近一次    {status.get('finished_at') or status.get('started_at')}")
@@ -196,23 +197,34 @@ def print_status(cfg: Config) -> int:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="daily",
-        description="智慧树每日 25 分钟自动学习（拿满学习习惯分）",
+        description="智慧树自动学习（支持「每日 25 分钟拿习惯分」与「--all 一口气刷完」双模式）",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "示例:\n"
-            "  python daily.py --login\n"
-            "  python daily.py\n"
+            "  python daily.py --login                  扫码登录\n"
+            "  python daily.py                          每日模式：学满 26 分钟收工（拿满 25 分钟习惯分）\n"
+            "  python daily.py --all                    冲刺模式：一口气刷完所有未完成视频（每 ~2 小时智能休息防风控）\n"
+            "  python daily.py --all --no-rest          冲刺模式：全程不休息连续刷到底\n"
+            "  python daily.py --all --speed 1.25       冲刺模式：以 1.25x 倍速一口气刷完\n"
             "  python daily.py --course 1919 --minutes 26\n"
-            "  python daily.py --fetch\n"
-            "  python daily.py --status\n"
+            "  python daily.py --fetch                  拉取课程清单到 courses.json\n"
+            "  python daily.py --status                 查看今日学习进度\n"
         ),
     )
     p.add_argument("--config", default=os.path.join(ROOT, "config.yaml"))
     p.add_argument("--course", nargs="+", help="只学指定课程 ID（共享课 racId / 校内课 courseId）")
-    p.add_argument("--minutes", type=float, help="覆盖每日分钟数（默认读 config.yaml）")
-    p.add_argument("--speed", type=float, help="覆盖播放速度（默认 1.0）")
+    p.add_argument("-a", "--all", action="store_true",
+                   help="一口气刷完模式：解除每日 26 分钟与会话次数限制，刷完所有未完成视频")
+    p.add_argument("--no-rest", action="store_true",
+                   help="关闭跨会话强制休息（配合 --all 全程连续刷课，仅保留视频间数秒停顿）")
+    p.add_argument("--force", action="store_true",
+                   help="忽略今日已达标记录，强制继续学习")
+    p.add_argument("--minutes", type=float,
+                   help="覆盖每日分钟数（传 0 等同于 --all 不限时；默认读 config.yaml）")
+    p.add_argument("--speed", type=float, help="覆盖播放速度（默认 1.0，上限 1.5）")
     p.add_argument("--login", action="store_true", help="强制重新扫码登录")
-    p.add_argument("--fetch", action="store_true", help="拉取课程清单后退出")
+    p.add_argument("--fetch", "--fetch-courses", dest="fetch", action="store_true",
+                   help="拉取课程清单后退出")
     p.add_argument("--status", action="store_true", help="查看今日状态后退出")
     p.add_argument("--no-relay", action="store_true", help="关闭验证码浏览器中继")
     p.add_argument("--dry-run", action="store_true", help="只打印配置，不连网站")
@@ -222,9 +234,22 @@ def build_parser() -> argparse.ArgumentParser:
 
 def apply_args(cfg: Config, args: argparse.Namespace) -> None:
     if args.minutes is not None:
-        if args.minutes <= 0:
-            raise SystemExit("--minutes 必须大于 0")
-        cfg.budget.daily_minutes = float(args.minutes)
+        if args.minutes < 0:
+            raise SystemExit("--minutes 不能小于 0（传 0 表示不限时一口气刷完）")
+        if args.minutes == 0:
+            args.all = True
+        else:
+            cfg.budget.daily_minutes = float(args.minutes)
+            # 当手动指定更长单日目标（如 --minutes 180）时，自动放宽单日会话次数
+            if cfg.budget.daily_minutes > 60 and cfg.budget.daily_sessions <= 2:
+                cfg.budget.daily_sessions = 0
+    if getattr(args, "all", False):
+        cfg.budget.daily_minutes = 0.0
+        cfg.budget.daily_sessions = 0
+        cfg.budget.session_minutes = (95.0, 150.0)
+        cfg.budget.rest_minutes = (0.0, 0.0) if getattr(args, "no_rest", False) else (10.0, 25.0)
+    elif getattr(args, "no_rest", False):
+        cfg.budget.rest_minutes = (0.0, 0.0)
     if args.speed is not None:
         cfg.study.speed = float(args.speed)
     if args.no_relay:
@@ -241,10 +266,22 @@ def run(args: argparse.Namespace) -> int:
     if args.status:
         return print_status(cfg)
 
+    unlimited = cfg.budget.daily_minutes <= 0
+    if unlimited:
+        rest_hi = cfg.budget.rest_minutes[1]
+        rest_desc = (
+            f"每 {cfg.budget.session_minutes[0]:.0f}~{cfg.budget.session_minutes[1]:.0f} 分钟"
+            f"智能休息 {cfg.budget.rest_minutes[0]:.0f}~{rest_hi:.0f} 分钟"
+            if rest_hi > 0 else "全程连续不休息"
+        )
+        mode_str = f"一口气刷完模式（{rest_desc}）"
+    else:
+        mode_str = f"{cfg.budget.daily_minutes:.0f} 分钟（拿满 25 分钟习惯分）"
+
     print("=" * 64)
-    print("智慧树 · 每日学习")
+    print("智慧树 · 自动学习")
     print(f"配置文件    {cfg.config_path}")
-    print(f"每日目标    {cfg.budget.daily_minutes:.0f} 分钟")
+    print(f"运行模式    {mode_str}")
     print(f"播放速度    {cfg.study.speed or cfg.pacer.default_speed}x")
     print(f"验证码中继  {'开启' if cfg.relay.enabled else '关闭'}")
     print(f"AI 弹题     {'开启 (' + cfg.ai.backend + ')' if cfg.ai.enabled else '关闭（仅用服务端答案）'}")
@@ -268,13 +305,20 @@ def run(args: argparse.Namespace) -> int:
                 # session_started，避免把隔了几小时的下一次运行误判成
                 # “连续在线 3 小时”，先强制休息 36 分钟。
                 app.budget.close_session()
-                # 今天已经学够：不再登录、不再发请求
-                if app.budget.daily_seconds() >= target_seconds:
+                # 今天已经学够（仅在每日限时模式且未传 --force / --login / --fetch 时跳过）
+                if (
+                    target_seconds > 0
+                    and not getattr(args, "force", False)
+                    and not args.login
+                    and not args.fetch
+                    and app.budget.daily_seconds() >= target_seconds
+                ):
                     studied = app.budget.daily_seconds()
                     result = "already_done"
                     log().info(
                         f"今天已学 {studied / 60:.1f} 分钟，达到目标 "
                         f"{cfg.budget.daily_minutes:.0f} 分钟，直接收工。"
+                        f"（若想一口气刷完，请加 --all）"
                     )
                     return 0
 
@@ -314,10 +358,9 @@ def run(args: argparse.Namespace) -> int:
                     else:
                         runner.run_all()
                     # 没有触发 BudgetExhausted，且确实有课程、没有课程级错误，
-                    # 才认为“全部完成”。否则只是本轮没学到东西，不能写 ALL_DONE。
+                    # 说明所有待学视频均已学完。
                     all_completed = (
-                        app.budget.daily_seconds() < 1.0
-                        and runner.last_course_count > 0
+                        runner.last_course_count > 0
                         and not runner.last_course_errors
                     )
                     if runner.last_course_errors:

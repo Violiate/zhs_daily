@@ -778,6 +778,23 @@ def test_audit_regressions() -> None:
     fake_png = b"\x89PNG\r\n\x1a\n" + b"\x00\x00\x00\rIHDR" + struct.pack(">II", 560, 280) + b"\x00" * 12
     check(CaptchaSolver._png_width(fake_png) == 560.0, "PNG IHDR 像素宽度解析正确 (适配高分屏 DPR)")
 
+    # 7) 一口气刷完模式 (--all / daily_minutes=0, daily_sessions=0) 不触发单日配额中断
+    from daily import apply_args, build_parser
+    cfg_all = Config.from_dict({}, HERE)
+    args_all = build_parser().parse_args(["--all", "--no-rest", "--speed", "1.25"])
+    apply_args(cfg_all, args_all)
+    check(cfg_all.budget.daily_minutes == 0.0 and cfg_all.budget.daily_sessions == 0,
+          "--all 模式自动解除单日分钟数与会话次数限制")
+    check(cfg_all.budget.rest_minutes == (0.0, 0.0) and cfg_all.study.speed == 1.25,
+          "--all --no-rest --speed 1.25 参数生效")
+    b_unlimited = Budget(cfg_all.budget, clock, {})
+    for _ in range(5):
+        b_unlimited.before_video("c_all")
+        b_unlimited.tick(3600.0, "c_all")
+        clock.advance(3600.0)
+    check(b_unlimited.daily_seconds() >= 18000.0,
+          f"一口气刷完模式连续推进 {b_unlimited.daily_seconds() / 60:.0f} 分钟不抛 BudgetExhausted")
+
 
 def main() -> int:
     tests = [

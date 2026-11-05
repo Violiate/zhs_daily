@@ -49,8 +49,8 @@ budget:
   enabled: true
   session_minutes: [45, 65]   # 单次连续会话墙钟上限（需大于 daily_minutes + 视频间休息耗时）
   rest_minutes: [20, 55]      # 到点强制休息
-  daily_minutes: 26           # 单日总时长上限（留 1 分钟余量，确保服务端稳定记满 25 分钟习惯分）
-  daily_sessions: 2           # 正常 1 次；第一次失败时允许当天重试 1 次
+  daily_minutes: 26           # 单日总时长上限（留 1 分钟余量确保记满 25 分钟习惯分；设为 0 表示不限时一口气刷完）
+  daily_sessions: 2           # 正常 1 次；第一次失败时允许当天重试 1 次（设为 0 表示不限次数）
   per_course_minutes: 0       # 单门课时限，0 = 不限
 
 # ---------- 风控总控 ----------
