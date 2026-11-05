@@ -39,10 +39,12 @@
 
 ## 二、3 分钟快速上手
 
-### 1. 环境准备
+### 1. 安装依赖（必做第一步）
 
 - **系统**：Windows 10 / 11（推荐，直接复用系统自带 Microsoft Edge 过验证码）、macOS 或 Linux
 - **环境**：Python 3.10+
+
+克隆仓库后，**请先安装依赖包**：
 
 ```powershell
 git clone https://github.com/<your-username>/zhs_daily.git
@@ -50,7 +52,9 @@ cd zhs_daily
 pip install -r requirements.txt
 ```
 
-> 💡 **提示**：Windows 10/11 默认直接调用系统自带 Edge 处理验证码，无需额外下载浏览器。若在 macOS / Linux 下使用，可执行 `python -m playwright install chromium` 安装内置内核。
+> 💡 **提示**：
+> - **无需手动创建 `config.yaml`**：首次运行 `daily.py` 时，程序会自动检测并从 [`config.example.yaml`](config.example.yaml) 生成一份开箱即用的 `config.yaml`。
+> - **无需额外下载浏览器**：Windows 10/11 默认直接调用系统自带 Edge 处理验证码；若在 macOS / Linux 下使用，可执行 `python -m playwright install chromium` 安装内置内核。
 
 ### 2. 扫码登录（首次运行）
 

@@ -326,16 +326,29 @@ state_file: "./state/state.json"
 auth:
   use_qr: true
   save_cookies: true
+fingerprint:
+  chrome_major: 0
+  platform: ""
 pacer:
   max_speed: 1.5
-  default_speed: 1.25
-  report_interval: [22, 47]
+  default_speed: 1.0
+  report_interval: [20, 40]
 budget:
+  session_minutes: [45, 65]
   daily_minutes: 26
   daily_sessions: 2
 relay:
   enabled: true
   headless: false
+study:
+  speed: 1.0
+  end_threshold: 0.99
+  initial_report: true
+  prime_video: true
+ai:
+  enabled: true
+  backend: zhidao
+  skip_exam: true
 """
 
 
@@ -370,7 +383,7 @@ def _bootstrap_config(target: str) -> None:
         print("只想先看它会做什么：")
         print("  python daily.py --dry-run")
         print("")
-        print("⚠  使用前请阅读 DISCLAIMER.md：本工具与智慧树平台、任何高校")
+        print("[注意] 使用前请阅读 DISCLAIMER.md：本工具与智慧树平台、任何高校")
         print("   均无关联，未获授权。自动化工具可能违反平台用户协议，并可能")
         print("   导致账号被限制或封禁、学习记录被判定无效。")
         print("   请只在你自己账号上使用，风险自负；禁止用于收费代刷等商业牟利。")
