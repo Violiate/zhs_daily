@@ -1,12 +1,12 @@
 # 免责声明 · DISCLAIMER
 
-**最后更新：2026-10-10**
+**最后更新：2026-11-05**
 
 ---
 
 ## 摘要
 
-本项目（zhs-ghost，以下简称"本软件"）是一个**个人学习辅助工具**，用于自动化使用者**本人在智慧树（zhihuishu.com）平台上的课程观看过程**。
+本项目（`zhs_daily` / `zhsgo`，以下简称"本软件"）是一个**个人学习辅助工具**，用于自动化使用者**本人在智慧树（zhihuishu.com）平台上的课程观看过程**。
 
 > **本软件与智慧树平台、任何高校、任何教育机构均无关联，未获其授权、认可或支持。**
 
@@ -94,15 +94,10 @@
 
 ## 六、关于逆向工程与第三方权利
 
-1. 本软件的接口分析、加密密钥、签名盐值、提示词模板等成果，
-   部分来源于 [fuckZHS](https://github.com/VermiIIi0n/fuckZHS)（MIT License，
-   Copyright (c) VermiIIi0n）的公开研究，并按 MIT 协议保留其版权声明。
-2. 本软件包含对公开前端代码的分析结果。**用于个人学习研究目的**。
-3. 本项目**不包含**任何来自智慧树平台的源代码、二进制文件、课程内容或用户数据。
-4. 本项目**不使用**智慧树平台的任何商标、Logo 或名义进行宣传。
-5. 如果智慧树平台或任何权利方认为本项目的内容侵犯了其合法权益，
-   请通过邮箱或 Issue 联系作者，作者将**及时、无条件地**处理（包括但不限于
-   移除相关内容、停止维护或下架整个项目）。
+1. 本软件包含对公开前端代码的协议分析结果，**仅用于个人学习与安全研究目的**。
+2. 本项目**不包含**任何来自智慧树平台的源代码、二进制文件、课程内容或用户数据。
+3. 本项目**不使用**智慧树平台的任何商标、Logo 或名义进行宣传。
+4. 如果智慧树平台或任何权利方认为本项目的内容侵犯了其合法权益，请通过 GitHub Issue 联系作者，作者将**及时、无条件地**处理（包括但不限于移除相关内容、停止维护或下架整个项目）。
 
 ---
 
@@ -143,7 +138,7 @@
 
 ## 十、English Summary
 
-**zhs-ghost** is a personal study-assistant tool that automates watching
+**zhs_daily (`zhsgo`)** is a personal study-assistant tool that automates watching
 **your own** courses on the zhihuishu.com platform.
 
 - **Not affiliated with, endorsed by, or supported by** Zhihuishu, any
@@ -158,9 +153,6 @@
   damages arising from the use of this software.
 - **No telemetry.** The software does not collect or transmit any user data.
   All credentials are stored locally and are your responsibility to protect.
-- Portions of the interface analysis are derived from
-  [fuckZHS](https://github.com/VermiIIi0n/fuckZHS) (MIT License,
-  Copyright (c) VermiIIi0n).
 
 **By using this software you acknowledge that you have read, understood, and
 agreed to this disclaimer in full.**
@@ -175,5 +167,3 @@ agreed to this disclaimer in full.**
 - ❌ "绝对安全，不会被发现" —— 没有任何自动化工具能保证这一点
 - ❌ "把你的账号密码给我，我帮你刷" —— 这是最典型的账号盗窃话术
 - ❌ "三天刷完全部学分" —— 超高倍速正是风控最容易命中的行为
-
-**项目唯一的官方来源是：<https://github.com/skyslight1/zhs-ghost>**

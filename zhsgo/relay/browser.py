@@ -155,7 +155,7 @@ class BrowserRelay:
               "  1) Windows 自带 Edge 正常应该能直接用；失败说明 Edge 被卸载或损坏\n"
               "  2) 想改用 playwright 内置 chromium：\n"
               "       源码版  python -m playwright install chromium\n"
-              "       exe 版   zhs-ghost.exe --install-browser\n"
+              "       命令版  python main.py --install-browser\n"
               "  3) 也可以先把 relay.enabled 改成 false，暂时跳过自动过验证码"
         )
         return None, None

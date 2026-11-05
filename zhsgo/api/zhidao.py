@@ -97,7 +97,7 @@ class ZhidaoApi:
         """跨站登录：给 studyh5 域建立会话。
 
         这个端点是导航/跳转型：正常响应就是 HTML 落地页，会话经 302 链
-        建立在 cookie 里。上游 fuckZHS 同样只发请求、从不解析响应体 ——
+        建立在 cookie 里。浏览器同样只发起跳转、从不按 JSON 解析响应体 ——
         一旦按 JSON 解析，就会在真正拉课之前抛「响应不是 JSON」。
         """
         self.http.get(ep.ZHIDAO_GOLOGIN, {
@@ -206,7 +206,7 @@ class ZhidaoApi:
                         token_id: str, *, initial: bool = False) -> AttrDict:
         """学习进度上报。
 
-        2026-11 前端实际协议（与旧版 fuckZHS 不同）：
+        2026-11 前端实际协议（与早期单接口协议不同）：
 
         * 打开视频时：`saveDatabaseIntervalTimeV2`，10 字段，带 `courseId`
         * 播放过程中：`saveCacheIntervalTimeV2`，10 字段，不带 `courseId`

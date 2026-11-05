@@ -1,4 +1,4 @@
-"""Crypto helpers derived from fuckZHS (MIT, Copyright (c) VermiIIi0n)."""
+"""Crypto helpers for Zhihuishu protocol (AES-128-CBC, ev XOR, hike MD5 signature)."""
 from .aes import IV, AI_KEY, EXAM_KEY, HOME_KEY, QA_KEY, VIDEO_KEY, AesCbc
 from .ev import get_ev, rev_ev
 from .signature import hike_sign

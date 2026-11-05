@@ -368,7 +368,7 @@ def _bootstrap_config(target: str) -> None:
         print("")
         print("默认使用【扫码登录】—— 账号密码留空即可直接运行。")
         print("只想先看它会做什么：")
-        print("  zhs-ghost.exe --dry-run")
+        print("  python daily.py --dry-run")
         print("")
         print("⚠  使用前请阅读 DISCLAIMER.md：本工具与智慧树平台、任何高校")
         print("   均无关联，未获授权。自动化工具可能违反平台用户协议，并可能")
