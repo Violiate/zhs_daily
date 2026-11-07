@@ -38,9 +38,21 @@
 
 ---
 
-## 二、3 分钟快速上手
+## 二、3 分钟快速上手（支持「免安装 EXE 版」与「Python 源码版」）
 
-### 1. 安装依赖（必做第一步）
+### 🌟 方式一：新手小白免安装版（强烈推荐 · 电脑无需安装 Python）
+
+1. 前往仓库右侧的 **[Releases](../../releases)** 页面，下载最新版的 **`zhs-daily-windows-x64.zip`** 并解压到任意文件夹；
+2. **直接双击 `zhs-daily.exe`**（或直接双击文件夹里的快捷脚本）：
+   - 双击 **`zhs-daily.exe`**：会弹出可视化数字菜单，输入 `1` 回车即开始「每日 25 分钟打卡」，输入 `2` 回车即开始「一口气刷完」；
+   - 或直接双击 **`run_login.bat`**（扫码登录）、**`run_daily.bat`**（每日 25 分钟打卡）、**`run_all.bat`**（一口气刷完所有课）；
+3. **首次运行自动弹码**：如果检测到你还没登录，程序会自动在窗口显示二维码并弹出高清二维码图片 `state\login_qr.png`，打开手机「知到」App 扫码确认后**直接自动开始刷课**！
+
+---
+
+### 💻 方式二：Python 源码运行版（适合开发者 / 跨平台用户）
+
+#### 1. 安装依赖（必做第一步）
 
 - **系统**：Windows 10 / 11（推荐，直接复用系统自带 Microsoft Edge 过验证码）、macOS 或 Linux
 - **环境**：Python 3.10+
@@ -57,20 +69,20 @@ pip install -r requirements.txt
 > - **无需手动创建 `config.yaml`**：首次运行 `daily.py` 时，程序会自动检测并从 [`config.example.yaml`](config.example.yaml) 生成一份开箱即用的 `config.yaml`。
 > - **无需额外下载浏览器**：Windows 10/11 默认直接调用系统自带 Edge 处理验证码；若在 macOS / Linux 下使用，可执行 `python -m playwright install chromium` 安装内置内核。
 
-### 2. 扫码登录（首次运行）
+#### 2. 扫码登录（首次运行）
 
 ```powershell
 python daily.py --login
 ```
 *(Windows 用户也可以直接双击 `run_login.bat`)*
 
-- 终端会直接渲染字符二维码，同时在 `state/login_qr.png` 生成高清二维码图片；
+- 终端会直接渲染字符二维码，同时在 `state/login_qr.png` 生成并打开高清二维码图片；
 - 打开手机 **「知到」App** 扫码确认；
-- 登录态与专属浏览器指纹会自动加密/持久化至本地 `state/state.json`，一次扫码可维持数周有效。
+- 登录态与专属浏览器指纹会自动持久化至本地 `state/state.json`，一次扫码可维持数周有效。
 
-### 3. 选择你的模式开始刷课
+#### 3. 选择你的模式开始刷课
 
-#### 方案 A：每日 25 分钟打卡模式（拿满平时习惯分，最推荐）
+##### 方案 A：每日 25 分钟打卡模式（拿满平时习惯分，最推荐）
 
 ```powershell
 # （可选）拉取在学课程清单到 courses.json，支持手动开关指定课程
@@ -83,7 +95,7 @@ python daily.py
 
 当累计有效学习满 **26 分钟** 时，程序会主动触发一次数据库层持久化上报（`saveDatabaseIntervalTimeV2`），确保服务端进度一秒不丢，随后干净退出。当天重复运行会自动识别「今日配额已达标」并秒退。
 
-#### 方案 B：一口气刷完模式（期末冲刺 / 无习惯分课程）
+##### 方案 B：一口气刷完模式（期末冲刺 / 无习惯分课程）
 
 如果你想直接一口气把所有未完成的视频全部刷完，无需修改配置文件，直接加上 `--all`（或双击 `run_all.bat`）：
 
@@ -216,9 +228,40 @@ ai:
 
 ---
 
-## 七、离线自检与回归测试
+## 七、免安装 EXE 打包与 GitHub Actions 自动构建
 
-项目配备了基于虚拟时钟（`FakeClock`）的完整离线测试套件，无需联网、无需登录，1 秒内即可验证加密往返、节拍分布、观看点单调性、半截视频补齐落库、弹题全题型作答等 **137 项断言**：
+本项目已内置完整的 PyInstaller 打包脚本 [`packaging/build.py`](packaging/build.py) 与 GitHub Actions 自动发布流水线 [`.github/workflows/release.yml`](.github/workflows/release.yml)。
+
+### 1. 使用 GitHub Actions 云端自动构建与发布 Release
+
+把代码推送到 GitHub 后，你有两种方式触发云端自动打包（生成 `zhs-daily-windows-x64.zip` 与 `zhs-daily-lite-windows-x64.zip`）：
+
+- **方式 A（网页端一键手动触发，最方便）**：
+  1. 打开你 GitHub 仓库顶部的 **Actions** 标签页；
+  2. 点击左侧的 **`release`** 工作流 $\rightarrow$ 点击右侧的 **`Run workflow`** 按钮；
+  3. 如果在弹窗里填入版本号（如 `v1.3.0`），构建完成后会自动在仓库的 **Releases** 页面发布正式版供所有人下载；如果留空，构建产物也会保存在本次 Actions 页面底部的 **Artifacts** 中。
+- **方式 B（推送 Git Tag 自动发版）**：
+  ```powershell
+  git tag v1.3.0
+  git push origin v1.3.0
+  ```
+
+### 2. 在本地电脑打包 EXE
+
+```powershell
+pip install pyinstaller
+python packaging/build.py release    # 同时构建完整版 (full) 与轻量版 (lite) 并打包 zip
+python packaging/build.py lite       # 仅构建轻量版 zhs-daily-lite.exe
+python packaging/build.py full       # 仅构建完整版 zhs-daily.exe
+```
+
+构建完成后，脚本会自动在临时沙盒目录对生成的 `.exe` 执行 `--dry-run`、`--all --dry-run` 与 `--selfcheck` 自检，并在 `dist/` 目录下输出开箱即用的 `.zip` 发布包。
+
+---
+
+## 八、离线自检与回归测试
+
+项目配备了基于虚拟时钟（`FakeClock`）的完整离线测试套件，无需联网、无需登录，1 秒内即可验证加密往返、节拍分布、观看点单调性、半截视频补齐落库、弹题全题型作答等 **140 项断言**：
 
 ```powershell
 python tests/run_tests.py
@@ -228,7 +271,7 @@ python tests/test_progress.py
 
 ---
 
-## 八、常见问题（FAQ）
+## 九、常见问题（FAQ）
 
 <details>
 <summary><b>Q1：为什么习惯分要求 25 分钟，默认配置里写的是 26 分钟？</b></summary>

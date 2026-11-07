@@ -36,10 +36,11 @@ from zhsgo.errors import (  # noqa: E402
     ZhsError,
 )
 from zhsgo.logger import get as log  # noqa: E402
+from zhsgo.paths import app_root, is_frozen  # noqa: E402
 from zhsgo.runner import StudyRunner  # noqa: E402
 from zhsgo.util import stderr_safe  # noqa: E402
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
+ROOT = app_root()
 STATUS_FILE = os.path.join(ROOT, "state", "daily_status.json")
 HISTORY_FILE = os.path.join(ROOT, "state", "daily_history.jsonl")
 LOCK_FILE = os.path.join(ROOT, "state", "daily.lock")
@@ -156,7 +157,7 @@ class RunLock:
 
 
 def render_qr(image_bytes: bytes) -> None:
-    """把二维码保存成 PNG，并尽量在终端画出来。"""
+    """把二维码保存成 PNG，尽量在终端画出来，并在 Windows 上自动弹出图片方便扫码。"""
     path = os.path.join(ROOT, "state", "login_qr.png")
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "wb") as f:
@@ -168,6 +169,11 @@ def render_qr(image_bytes: bytes) -> None:
     except Exception:
         pass
     print(f"\n二维码已保存：{path}\n请用手机「知到」App 扫码，并在手机上确认登录。\n")
+    if sys.platform == "win32":
+        try:
+            os.startfile(path)  # type: ignore[attr-defined]
+        except Exception:
+            pass
 
 
 def print_status(cfg: Config) -> int:
@@ -227,6 +233,10 @@ def build_parser() -> argparse.ArgumentParser:
                    help="拉取课程清单后退出")
     p.add_argument("--status", action="store_true", help="查看今日状态后退出")
     p.add_argument("--no-relay", action="store_true", help="关闭验证码浏览器中继")
+    p.add_argument("--unattended", action="store_true",
+                   help="无人值守模式（供计划任务调用，未登录时直接返回退出码 2 而不等待扫码）")
+    p.add_argument("--selfcheck", action="store_true", help="运行打包组件与浏览器环境自检")
+    p.add_argument("--install-browser", action="store_true", help="安装 playwright 内置 chromium")
     p.add_argument("--dry-run", action="store_true", help="只打印配置，不连网站")
     p.add_argument("--debug", action="store_true", help="输出 DEBUG 日志")
     return p
@@ -260,6 +270,20 @@ def apply_args(cfg: Config, args: argparse.Namespace) -> None:
 
 def run(args: argparse.Namespace) -> int:
     stderr_safe()
+    if is_frozen():
+        try:
+            os.chdir(ROOT)
+        except Exception:
+            pass
+
+    if getattr(args, "install_browser", False):
+        from zhsgo.cli import install_browser
+        return install_browser()
+
+    if getattr(args, "selfcheck", False):
+        from zhsgo.cli import selfcheck
+        return selfcheck()
+
     cfg = Config.load(args.config)
     apply_args(cfg, args)
 
@@ -322,8 +346,9 @@ def run(args: argparse.Namespace) -> int:
                     )
                     return 0
 
-                # 登录：有 cookie 就复用；没有则要求先 --login。
-                # 不在计划任务里自动弹二维码 —— 无人值守时那会一直挂到超时。
+                # 登录：有 cookie 就复用；
+                # 若在交互终端运行（非计划任务 --unattended），未登录时直接自动弹出二维码引导扫码，
+                # 扫码成功后无缝继续刷课，对新手小白零门槛。
                 if args.login:
                     app.login(on_qr=render_qr, force=True, qr=True)
                     try:
@@ -331,12 +356,22 @@ def run(args: argparse.Namespace) -> int:
                     except OSError:
                         pass
                     result = "login"
-                    log().info("登录完成，cookie 已保存；下次运行 daily.py 即可开始学习。")
+                    log().info("登录完成，cookie 已保存；下次运行即可直接开始学习。")
                     return 0
                 elif not app.passport.uuid:
-                    raise AuthError(
-                        "没有可用登录态。请先在交互终端运行：python daily.py --login"
-                    )
+                    interactive = (not getattr(args, "unattended", False)) and sys.stdin is not None and sys.stdin.isatty()
+                    if interactive:
+                        log().info("检测到当前尚未登录（或登录态已过期），正在启动扫码登录...")
+                        app.login(on_qr=render_qr, force=True, qr=True)
+                        try:
+                            os.remove(NEED_LOGIN)
+                        except OSError:
+                            pass
+                        log().info("扫码登录成功！即将开始自动学习...")
+                    else:
+                        raise AuthError(
+                            "没有可用登录态。请先双击 run_login.bat 或运行：python daily.py --login"
+                        )
 
                 runner = StudyRunner(app)
 
@@ -460,9 +495,50 @@ def run(args: argparse.Namespace) -> int:
         )
 
 
+def _interactive_menu() -> List[str]:
+    """当用户直接双击打包后的 zhs-daily.exe（无命令行参数）时展示新手交互菜单。"""
+    print("=" * 64)
+    print("  🌲 智慧树（知到）自动学习助手 · 开箱即用版")
+    print("=" * 64)
+    print("  请选择运行模式（输入数字后按回车，直接按回车默认选 1）：\n")
+    print("    [1] 每日 25 分钟打卡模式（推荐 · 稳拿平时学习习惯分）")
+    print("    [2] 一口气刷完模式（解除每日限时 · 每 ~2h 智能小憩防封）")
+    print("    [3] 一口气全速直通模式（1.25x 倍速 + 全程连续不休息）")
+    print("    [4] 扫码登录 / 切换账号")
+    print("    [5] 拉取在学课程清单到 courses.json")
+    print("    [6] 查看今日学习进度与历史状态")
+    print("=" * 64)
+    try:
+        choice = input("请输入选项 [1-6，默认 1]: ").strip()
+    except EOFError:
+        choice = "1"
+    print()
+    mapping = {
+        "": [],
+        "1": [],
+        "2": ["--all"],
+        "3": ["--all", "--no-rest", "--speed", "1.25"],
+        "4": ["--login"],
+        "5": ["--fetch"],
+        "6": ["--status"],
+    }
+    return mapping.get(choice, [])
+
+
 def main(argv: Optional[List[str]] = None) -> int:
-    args = build_parser().parse_args(argv)
-    return run(args)
+    stderr_safe()
+    raw = list(sys.argv[1:] if argv is None else argv)
+    interactive_launch = (argv is None and not raw and is_frozen() and sys.stdin is not None and sys.stdin.isatty())
+    if interactive_launch:
+        raw = _interactive_menu()
+    args = build_parser().parse_args(raw)
+    code = run(args)
+    if interactive_launch:
+        try:
+            input("\n运行结束，按回车键关闭窗口...")
+        except Exception:
+            pass
+    return code
 
 
 if __name__ == "__main__":

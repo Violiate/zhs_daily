@@ -4,13 +4,23 @@ set PYTHONUTF8=1
 set PYTHONIOENCODING=utf-8
 cd /d "%~dp0"
 if not exist "logs" mkdir "logs"
-if exist ".venv\Scripts\python.exe" (
-  set "PY=.venv\Scripts\python.exe"
+
+echo ============================================================
+echo  智慧树 · 每日 25 分钟自动打卡模式 (稳拿平时习惯分)
+echo ============================================================
+
+if exist "zhs-daily.exe" (
+  "zhs-daily.exe" --config "%~dp0config.yaml"
+) else if exist "zhs-daily-lite.exe" (
+  "zhs-daily-lite.exe" --config "%~dp0config.yaml"
+) else if exist ".venv\Scripts\python.exe" (
+  ".venv\Scripts\python.exe" daily.py --config "%~dp0config.yaml"
 ) else (
-  set "PY=python"
+  python daily.py --config "%~dp0config.yaml"
 )
-echo [%date% %time%] daily start>>"logs\task.log"
-"%PY%" daily.py --config "%~dp0config.yaml" >>"logs\task.log" 2>&1
+
 set RC=%ERRORLEVEL%
-echo [%date% %time%] daily exit=%RC%>>"logs\task.log"
+echo.
+echo [运行结束，退出码=%RC%]
+pause
 exit /b %RC%

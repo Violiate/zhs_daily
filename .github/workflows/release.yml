@@ -1,0 +1,92 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "可选：填写版本号（如 v1.3.0）将直接自动创建并发布 GitHub Release；留空则仅生成 Actions 构建产物供下载"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  windows-exe:
+    name: Build Windows Standalone EXE & ZIP
+    runs-on: windows-latest
+
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies & PyInstaller
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -r requirements.txt
+          pip install --upgrade pyinstaller
+
+      - name: Run unit & regression tests before packaging
+        run: |
+          python tests/run_tests.py
+          python tests/test_popup.py
+          python tests/test_progress.py
+
+      - name: Build Full & Lite Windows executables + ZIP bundles
+        run: python packaging/build.py release
+
+      - name: Verify build artifacts
+        shell: pwsh
+        run: |
+          Get-ChildItem dist | Format-Table Name, Length
+          $expected = @(
+            "dist/zhs-daily.exe",
+            "dist/zhs-daily-lite.exe",
+            "dist/zhs-daily-windows-x64.zip",
+            "dist/zhs-daily-lite-windows-x64.zip"
+          )
+          foreach ($f in $expected) {
+            if (-not (Test-Path $f)) { throw "Missing artifact: $f" }
+            if ((Get-Item $f).Length -lt 1MB) { throw "$f size is abnormally small" }
+          }
+
+      - name: Upload build artifacts to GitHub Actions
+        uses: actions/upload-artifact@v4
+        with:
+          name: zhs-daily-windows-x64
+          path: |
+            dist/*.exe
+            dist/*.zip
+          retention-days: 30
+
+      - name: Publish GitHub Release (on tag push or manual release_tag input)
+        if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.release_tag != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.release_tag != '' && github.event.inputs.release_tag || github.ref_name }}
+          name: "zhs_daily ${{ github.event.inputs.release_tag != '' && github.event.inputs.release_tag || github.ref_name }} · 免安装开箱即用版"
+          body: |
+            ### 📦 免安装开箱即用下载指南（新手小白无需安装 Python）
+
+            | 文件名 | 适用人群与说明 |
+            | :--- | :--- |
+            | **`zhs-daily-windows-x64.zip`** *(强烈推荐)* | **完整开箱即用包**：内置完整运行环境、OCR 验证码自动识别模型与一键启动脚本（`run_login.bat` / `run_daily.bat` / `run_all.bat`）。解压后直接双击 `zhs-daily.exe` 或 `.bat` 即可使用！ |
+            | **`zhs-daily-lite-windows-x64.zip`** | **轻量便携包（~15MB）**：不含本地 OCR 模型库，体积小巧，支持扫码登录、每日 25 分钟打卡、一口气刷完与 AI 弹题作答。 |
+            | `zhs-daily.exe` / `zhs-daily-lite.exe` | 独立单文件可执行程序，直接双击即可弹出数字交互菜单（`[1] 每日 25 分钟打卡` / `[2] 一口气刷完` / `[4] 扫码登录`）。 |
+          files: |
+            dist/zhs-daily-windows-x64.zip
+            dist/zhs-daily-lite-windows-x64.zip
+            dist/zhs-daily.exe
+            dist/zhs-daily-lite.exe
+          generate_release_notes: true
+          draft: false

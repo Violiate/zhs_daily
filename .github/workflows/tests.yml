@@ -1,0 +1,51 @@
+name: tests
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  selftest:
+    name: Unit & Regression Tests (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install core test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pycryptodome PyYAML loguru Pillow
+
+      - name: Byte-compile all sources
+        run: python -m compileall -q zhsgo daily.py main.py packaging tests
+
+      - name: Run 130+ core & anti-bot regression tests
+        run: python tests/run_tests.py
+
+      - name: Run popup quiz & progress format tests
+        run: |
+          python tests/test_popup.py
+          python tests/test_progress.py
+
+      - name: Dry-run CLI checks (Daily 25m & All-in-one modes)
+        run: |
+          python daily.py --dry-run
+          python daily.py --all --dry-run
+          python daily.py --all --no-rest --speed 1.25 --dry-run
+          python main.py --dry-run
